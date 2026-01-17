@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<title>CellarCount – Vinlager</title>
+<title>CellarCount – Vinlager (Fase A)</title>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
@@ -27,10 +27,10 @@ th { background:#eee; }
 
 <body>
 
-<h1>🍷 CellarCount</h1>
+<h1>🍷 CellarCount – Fase A</h1>
 
 <input type="file" id="csvFile" accept=".csv">
-<button onclick="openImport()">Importer</button>
+<button onclick="importCSV()">Importer</button>
 <button onclick="resetInventory()">Nulstil lager</button>
 
 <div class="total" id="totalValue"></div>
@@ -55,7 +55,7 @@ Hylde: <input id="filterHylde" placeholder="fx 1" style="width:60px">
 <div class="label-row" id="labels"></div>
 
 <script>
-/* ---------- STATE (PERSISTENT) ---------- */
+/* ---------- STATE ---------- */
 let wines = JSON.parse(localStorage.getItem("cellarcount_wines")) || [];
 
 /* ---------- SAVE ---------- */
@@ -64,53 +64,43 @@ function save() {
 }
 
 /* ---------- IMPORT ---------- */
-function openImport() {
-  const mode = prompt(
-    "Vælg import:\n1 = Overskriv lager\n2 = Tilføj nye vine\n3 = Opdater kun priser",
-    "1"
-  );
-  if (!["1","2","3"].includes(mode)) return;
-
+function importCSV() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return alert("Vælg CSV-fil");
 
   const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result, mode);
+  reader.onload = e => parseCSV(e.target.result);
   reader.readAsText(file, "UTF-8");
 }
 
-function parseCSV(text, mode) {
+function parseCSV(text) {
   const lines = text.trim().split("\n");
   const headers = lines[0].split(";").map(h => h.trim());
 
-  if (mode === "1") wines = [];
-
-  let added = 0, updated = 0;
+  wines = [];
 
   for (let i = 1; i < lines.length; i++) {
     const vals = lines[i].split(";");
     const w = {};
-    headers.forEach((h, idx) => w[h] = vals[idx]?.trim());
+
+    headers.forEach((h, idx) => {
+      w[h] = (vals[idx] || "").trim();
+    });
+
+    /* NORMALISERING (KRITISK) */
+    w.reol = w.reol.toUpperCase();
+    w.hylde = w.hylde.toUpperCase();
 
     w.quantity = Number(w.quantity || 0);
     w.price = Number(w.price || 0);
     w.vinId = w.vinId || crypto.randomUUID();
 
-    const existing = wines.find(x =>
-      x.vinId === w.vinId || x.name === w.name
-    );
-
-    if (!existing && mode !== "3") {
-      wines.push(w); added++;
-    }
-    if (existing && mode !== "2") {
-      existing.price = w.price; updated++;
-    }
+    wines.push(w);
   }
 
   save();
   renderTable();
-  alert(`Import færdig\nTilføjet: ${added}\nOpdateret: ${updated}`);
+  alert("Import færdig: " + wines.length + " vine");
   document.getElementById("csvFile").value = "";
 }
 
@@ -148,10 +138,10 @@ function renderTable() {
     "Samlet lagerværdi: " + formatDKK(total);
 }
 
-/* ---------- LABELS (KORREKT LOGIK) ---------- */
+/* ---------- LABELS (KORREKT) ---------- */
 function renderLabels() {
-  const reol = document.getElementById("filterReol").value.trim();
-  const hylde = document.getElementById("filterHylde").value.trim();
+  const reol = document.getElementById("filterReol").value.trim().toUpperCase();
+  const hylde = document.getElementById("filterHylde").value.trim().toUpperCase();
   const container = document.getElementById("labels");
   container.innerHTML = "";
 
@@ -181,12 +171,14 @@ function renderLabels() {
     `;
     container.appendChild(div);
 
-    QRCode.toCanvas(
-      div.querySelector("canvas"),
-      w.vinId,
-      { width: 110 },
-      err => { if (err) console.error(err); }
-    );
+    /* QR – SIKKER RENDER */
+    requestAnimationFrame(() => {
+      QRCode.toCanvas(
+        div.querySelector("canvas"),
+        w.vinId,
+        { width: 110 }
+      );
+    });
   });
 }
 
