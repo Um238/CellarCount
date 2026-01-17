@@ -2,103 +2,68 @@
 <html lang="da">
 <head>
   <meta charset="UTF-8">
-  <title>CellarCount – Vinlager</title>
+  <title>CellarCount – Print labels</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { margin-bottom: 5px; }
-    button, input { padding: 8px; margin: 6px 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 6px; vertical-align: top; }
-    th { background: #eee; }
-    .danger { background: #c62828; color: white; }
-    .info { margin-top: 10px; font-weight: bold; }
-    .qr { width: 90px; }
-    .print-area { display: none; }
+    button { padding: 10px; margin: 10px 0; }
+
+    .labels {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .label {
+      border: 1px solid #000;
+      padding: 10px;
+      min-height: 160px;
+    }
+
+    .label canvas {
+      display: block;
+      margin-top: 6px;
+    }
+
     @media print {
       body * { visibility: hidden; }
-      .print-area, .print-area * { visibility: visible; }
-      .print-area { position: absolute; left: 0; top: 0; width: 100%; }
-      .label {
-        width: 48%;
-        border: 1px solid #000;
-        padding: 10px;
-        margin: 1%;
-        float: left;
-        page-break-inside: avoid;
+      .labels, .labels * { visibility: visible; }
+      .labels {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
       }
     }
   </style>
 </head>
 <body>
 
-<h1>🍷 CellarCount</h1>
-<p>Fase B – Stregkoder & labels</p>
+<h1>🍷 CellarCount – Print labels</h1>
+<button onclick="window.print()">🖨️ Print labels</button>
 
-<button onclick="showLabels()">Print labels</button>
-
-<h2>Vinlager</h2>
-<table>
-  <thead>
-    <tr>
-      <th>VIN-ID</th>
-      <th>Navn</th>
-      <th>Årgang</th>
-      <th>Lokation</th>
-      <th>QR</th>
-    </tr>
-  </thead>
-  <tbody id="list"></tbody>
-</table>
-
-<div class="print-area" id="printArea"></div>
+<div class="labels" id="labels"></div>
 
 <script>
-const STORAGE_KEY = "cellarcount_inventory";
-let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+const inventory = JSON.parse(localStorage.getItem("cellarcount_inventory")) || [];
+const container = document.getElementById("labels");
 
-function render() {
-  const tbody = document.getElementById("list");
-  const printArea = document.getElementById("printArea");
-  tbody.innerHTML = "";
-  printArea.innerHTML = "";
+inventory.forEach(v => {
+  const div = document.createElement("div");
+  div.className = "label";
+  div.innerHTML = `
+    <strong>${v.navn}</strong><br>
+    Årgang: ${v.årgang}<br>
+    Lokation: ${v.reol}-${v.hylde}<br>
+    VIN-ID: ${v.vinId}
+    <canvas></canvas>
+  `;
+  container.appendChild(div);
 
-  inventory.forEach(v => {
-    const tr = document.createElement("tr");
-    const qrId = "qr_" + v.vinId;
-
-    tr.innerHTML = `
-      <td>${v.vinId}</td>
-      <td>${v.navn}</td>
-      <td>${v.årgang}</td>
-      <td>${v.reol}-${v.hylde}</td>
-      <td><canvas id="${qrId}" class="qr"></canvas></td>
-    `;
-    tbody.appendChild(tr);
-
-    QRCode.toCanvas(document.getElementById(qrId), v.vinId);
-
-    const label = document.createElement("div");
-    label.className = "label";
-    label.innerHTML = `
-      <strong>${v.navn}</strong><br>
-      Årgang: ${v.årgang}<br>
-      Lokation: ${v.reol}-${v.hylde}<br>
-      <canvas id="print_${qrId}"></canvas>
-      <div>${v.vinId}</div>
-    `;
-    printArea.appendChild(label);
-
-    QRCode.toCanvas(label.querySelector("canvas"), v.vinId);
-  });
-}
-
-function showLabels() {
-  window.print();
-}
-
-render();
+  QRCode.toCanvas(div.querySelector("canvas"), v.vinId, { width: 100 });
+});
 </script>
 
 </body>
