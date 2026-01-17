@@ -35,7 +35,19 @@
 </table>
 
 <script>
-  const wines = [];
+ <script>
+  const STORAGE_KEY = "cellarcount_wines";
+
+  function loadWines() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  }
+
+  function saveWines(wines) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(wines));
+  }
+
+  let wines = loadWines();
 
   function addWine() {
     const name = document.getElementById("name").value;
@@ -45,7 +57,12 @@
     if (!name || !country || !quantity) return;
 
     wines.push({ name, country, quantity });
+    saveWines(wines);
     render();
+
+    document.getElementById("name").value = "";
+    document.getElementById("country").value = "";
+    document.getElementById("quantity").value = "";
   }
 
   function render() {
@@ -62,6 +79,10 @@
       `;
     });
   }
+
+  render();
+</script>
+
 </script>
 
 </body>
