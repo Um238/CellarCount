@@ -7,14 +7,13 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; margin: 20px; background:#f5f5f5; }
+body { font-family: Arial, sans-serif; margin:20px; background:#f5f5f5; }
 table { width:100%; border-collapse:collapse; background:#fff; }
 th,td { border:1px solid #ccc; padding:6px; }
 th { background:#eee; }
 .right { text-align:right; }
 
-.controls { margin-bottom:10px; }
-.label-row { display:flex; flex-wrap:wrap; gap:10px; }
+.label-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
 .label {
   border:1px solid #000;
   padding:10px;
@@ -30,11 +29,9 @@ th { background:#eee; }
 
 <h1>🍷 CellarCount</h1>
 
-<div class="controls">
-  <input type="file" id="csvFile" accept=".csv">
-  <button onclick="openImportDialog()">Importer</button>
-  <button onclick="resetInventory()">Nulstil lager</button>
-</div>
+<input type="file" id="csvFile" accept=".csv">
+<button onclick="openImport()">Importer</button>
+<button onclick="resetInventory()">Nulstil lager</button>
 
 <div class="total" id="totalValue">Samlet lagerværdi: 0,00 kr.</div>
 
@@ -51,8 +48,8 @@ th { background:#eee; }
 <hr>
 
 <h2>Print labels</h2>
-Reol: <input id="filterReol" style="width:50px">
-Hylde: <input id="filterHylde" style="width:50px">
+Reol: <input id="filterReol" placeholder="fx A" style="width:60px">
+Hylde: <input id="filterHylde" placeholder="fx 1" style="width:60px">
 <button onclick="renderLabels()">Vis labels</button>
 
 <div class="label-row" id="labels"></div>
@@ -60,8 +57,8 @@ Hylde: <input id="filterHylde" style="width:50px">
 <script>
 let wines = [];
 
-/* ---------- IMPORT DIALOG ---------- */
-function openImportDialog() {
+/* ---------- IMPORT ---------- */
+function openImport() {
   const mode = prompt(
     "Vælg import:\n1 = Overskriv lager\n2 = Tilføj nye vine\n3 = Opdater kun priser",
     "1"
@@ -69,7 +66,7 @@ function openImportDialog() {
   if (!["1","2","3"].includes(mode)) return;
 
   const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg CSV-fil");
+  if (!file) return alert("Vælg en CSV-fil");
 
   const reader = new FileReader();
   reader.onload = e => parseCSV(e.target.result, mode);
@@ -78,32 +75,32 @@ function openImportDialog() {
 
 function parseCSV(text, mode) {
   const lines = text.trim().split("\n");
-  const headers = lines[0].split(";").map(h=>h.trim());
+  const headers = lines[0].split(";").map(h => h.trim());
 
-  if (mode==="1") wines=[];
+  if (mode === "1") wines = [];
 
-  let added=0, updated=0;
+  let added = 0, updated = 0;
 
-  for (let i=1;i<lines.length;i++) {
+  for (let i = 1; i < lines.length; i++) {
     const vals = lines[i].split(";");
     const w = {};
-    headers.forEach((h,idx)=>w[h]=vals[idx]?.trim());
+    headers.forEach((h, idx) => w[h] = vals[idx]?.trim());
 
-    w.quantity=Number(w.quantity||0);
-    w.price=Number(w.price||0);
+    w.quantity = Number(w.quantity || 0);
+    w.price = Number(w.price || 0);
     w.vinId = w.vinId || crypto.randomUUID();
 
-    const existing = wines.find(x=>x.vinId===w.vinId || x.name===w.name);
+    const existing = wines.find(x => x.vinId === w.vinId || x.name === w.name);
 
-    if (!existing && mode!=="3") {
+    if (!existing && mode !== "3") {
       wines.push(w); added++;
     }
-    if (existing && mode!=="2") {
+    if (existing && mode !== "2") {
       existing.price = w.price; updated++;
     }
   }
 
-  document.getElementById("csvFile").value="";
+  document.getElementById("csvFile").value = "";
   renderTable();
   alert(`Import færdig\nTilføjet: ${added}\nOpdateret: ${updated}`);
 }
@@ -111,63 +108,83 @@ function parseCSV(text, mode) {
 /* ---------- RESET ---------- */
 function resetInventory() {
   if (!confirm("Vil du slette hele lageret?")) return;
-  wines=[];
+  wines = [];
   renderTable();
+  document.getElementById("labels").innerHTML = "";
 }
 
 /* ---------- TABLE ---------- */
 function renderTable() {
-  const tbody=document.getElementById("inventory");
-  tbody.innerHTML="";
-  let total=0;
+  const tbody = document.getElementById("inventory");
+  tbody.innerHTML = "";
+  let total = 0;
 
-  wines.forEach(w=>{
-    total+=w.quantity*w.price;
-    tbody.innerHTML+=`
+  wines.forEach(w => {
+    total += w.quantity * w.price;
+    tbody.innerHTML += `
       <tr>
-        <td>${w.name}</td><td>${w.category}</td>
-        <td>${w.country}</td><td>${w.region}</td>
-        <td>${w.reol}</td><td>${w.hylde}</td>
+        <td>${w.name}</td>
+        <td>${w.category}</td>
+        <td>${w.country}</td>
+        <td>${w.region}</td>
+        <td>${w.reol}</td>
+        <td>${w.hylde}</td>
         <td class="right">${w.quantity}</td>
         <td class="right">${formatDKK(w.price)}</td>
       </tr>`;
   });
 
   document.getElementById("totalValue").innerText =
-    "Samlet lagerværdi: "+formatDKK(total);
+    "Samlet lagerværdi: " + formatDKK(total);
 }
 
-/* ---------- LABELS ---------- */
+/* ---------- LABELS (KORREKT LOGIK) ---------- */
 function renderLabels() {
-  const r=document.getElementById("filterReol").value;
-  const h=document.getElementById("filterHylde").value;
-  const div=document.getElementById("labels");
-  div.innerHTML="";
+  const reol = document.getElementById("filterReol").value.trim();
+  const hylde = document.getElementById("filterHylde").value.trim();
+  const container = document.getElementById("labels");
+  container.innerHTML = "";
 
-  wines
-    .filter(w=>(!r||w.reol===r)&&(!h||w.hylde===h))
-    .forEach(w=>{
-      const box=document.createElement("div");
-      box.className="label";
-      box.innerHTML=`
-        <strong>${w.name}</strong><br>
-        ${w.category}<br>
-        ${w.country} – ${w.region}<br>
-        Reol ${w.reol} · Hylde ${w.hylde}<br>
-        <canvas></canvas>`;
-      div.appendChild(box);
+  if (!reol) {
+    alert("Indtast mindst en reol");
+    return;
+  }
 
-      QRCode.toCanvas(
-        box.querySelector("canvas"),
-        w.vinId,
-        { width:100 }
-      );
-    });
+  const filtered = wines.filter(w =>
+    w.reol === reol && (!hylde || w.hylde === hylde)
+  );
+
+  if (filtered.length === 0) {
+    container.innerHTML = "<p>Ingen vine fundet</p>";
+    return;
+  }
+
+  filtered.forEach(w => {
+    const div = document.createElement("div");
+    div.className = "label";
+    div.innerHTML = `
+      <strong>${w.name}</strong><br>
+      ${w.category}<br>
+      ${w.country} – ${w.region}<br>
+      Reol ${w.reol} · Hylde ${w.hylde}<br>
+      <canvas></canvas>
+    `;
+    container.appendChild(div);
+
+    QRCode.toCanvas(
+      div.querySelector("canvas"),
+      w.vinId,
+      { width: 110 }
+    );
+  });
 }
 
 /* ---------- FORMAT ---------- */
-function formatDKK(n){
-  return n.toLocaleString("da-DK",{style:"currency",currency:"DKK"});
+function formatDKK(n) {
+  return n.toLocaleString("da-DK", {
+    style: "currency",
+    currency: "DKK"
+  });
 }
 </script>
 
