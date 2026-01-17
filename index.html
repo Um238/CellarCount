@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
@@ -70,18 +69,13 @@
 
 <h2>Print labels</h2>
 <button onclick="window.print()">🖨️ Print labels</button>
-
 <div class="labels" id="labels"></div>
 
 <script>
 /* =========================
-   KONFIGURATION
-========================= */
-const STORAGE_KEY = "cellarcount_inventory";
-
-/* =========================
    DATA
 ========================= */
+const STORAGE_KEY = "cellarcount_inventory";
 let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 let vinCounter = inventory.length;
 
@@ -98,12 +92,94 @@ function save() {
 }
 
 /* =========================
+   CSV PARSER (ROBUST)
+========================= */
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const delimiter = lines[0].includes(";") ? ";" : ",";
+  const rows = lines.map(line => line.split(delimiter));
+  rows.shift(); // header
+  return rows;
+}
+
+/* =========================
+   IMPORT
+========================= */
+function importCSV() {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Vælg en CSV-fil");
+
+  const mode = prompt(
+`Vælg import-type:
+1 = Overskriv hele lageret
+2 = Tilføj nye vine
+3 = Opdater kun priser`,
+"1"
+  );
+  if (!["1","2","3"].includes(mode)) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parseCSV(e.target.result);
+
+    if (mode === "1") {
+      inventory = [];
+      vinCounter = 0;
+    }
+
+    rows.forEach(c => {
+      const wine = {
+        name: c[0],
+        category: c[1],
+        country: c[2],
+        region: c[3],
+        grape: c[4],
+        style: c[5],
+        vintage: c[6],
+        location: c[7],
+        quantity: Number(c[8]),
+        price: Number(c[9]),
+        vinId: c[10] || null
+      };
+
+      if (mode === "1") {
+        wine.vinId = generateVinId();
+        inventory.push(wine);
+      }
+
+      if (mode === "2") {
+        const exists = inventory.find(v =>
+          v.name === wine.name &&
+          v.vintage === wine.vintage &&
+          v.country === wine.country
+        );
+        if (!exists) {
+          wine.vinId = generateVinId();
+          inventory.push(wine);
+        }
+      }
+
+      if (mode === "3") {
+        const existing = inventory.find(v => v.vinId === wine.vinId);
+        if (existing && !isNaN(wine.price)) {
+          existing.price = wine.price;
+        }
+      }
+    });
+
+    save();
+    render();
+    alert("Import gennemført korrekt");
+  };
+  reader.readAsText(file);
+}
+
+/* =========================
    RENDER
 ========================= */
 function render() {
   const tbody = document.getElementById("list");
   const labels = document.getElementById("labels");
-
   tbody.innerHTML = "";
   labels.innerHTML = "";
 
@@ -132,86 +208,8 @@ function render() {
       <canvas></canvas>
     `;
     labels.appendChild(div);
-
     QRCode.toCanvas(div.querySelector("canvas"), v.vinId, { width: 100 });
   });
-}
-
-/* =========================
-   IMPORT
-========================= */
-function importCSV() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg en CSV-fil");
-
-  const mode = prompt(
-`Vælg import-type:
-1 = Overskriv hele lageret
-2 = Tilføj nye vine
-3 = Opdater kun priser`,
-"1"
-  );
-
-  if (!["1","2","3"].includes(mode)) return alert("Ugyldigt valg");
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const lines = e.target.result.trim().split("\n");
-    lines.shift(); // header
-
-    if (mode === "1") {
-      inventory = [];
-      vinCounter = 0;
-    }
-
-    lines.forEach(line => {
-      const c = line.split(",");
-
-      const csvWine = {
-        name: c[0],
-        category: c[1],
-        country: c[2],
-        region: c[3],
-        grape: c[4],
-        style: c[5],
-        vintage: c[6],
-        location: c[7],
-        quantity: Number(c[8]),
-        price: Number(c[9]),
-        vinId: c[10] || null
-      };
-
-      if (mode === "1") {
-        csvWine.vinId = generateVinId();
-        inventory.push(csvWine);
-      }
-
-      if (mode === "2") {
-        const exists = inventory.find(v =>
-          v.name === csvWine.name &&
-          v.vintage === csvWine.vintage &&
-          v.country === csvWine.country
-        );
-        if (!exists) {
-          csvWine.vinId = generateVinId();
-          inventory.push(csvWine);
-        }
-      }
-
-      if (mode === "3") {
-        const existing = inventory.find(v => v.vinId === csvWine.vinId);
-        if (existing && !isNaN(csvWine.price)) {
-          existing.price = csvWine.price;
-        }
-      }
-    });
-
-    save();
-    render();
-    alert("Import gennemført korrekt");
-  };
-
-  reader.readAsText(file);
 }
 
 /* =========================
@@ -225,9 +223,6 @@ function resetAll() {
   render();
 }
 
-/* =========================
-   START
-========================= */
 render();
 </script>
 
