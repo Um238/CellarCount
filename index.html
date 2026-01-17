@@ -5,13 +5,12 @@
   <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- QR -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { margin-bottom: 4px; }
-    input, button { padding: 8px; margin: 6px 0; }
+    button, input { padding: 8px; margin: 6px 0; }
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
     th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
     th { background: #eee; }
@@ -44,13 +43,13 @@
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Vinlager til hotel, restaurant og café</p>
+<p>Vinlager & optælling til hotel, restaurant og café</p>
 
-<h2>Importér vinlager (CSV)</h2>
+<h2>Import vinlager (CSV)</h2>
 <input type="file" id="csvFile" accept=".csv">
 <br>
 <button onclick="importCSV()">Importér CSV</button>
-<button onclick="clearAll()">Nulstil lager</button>
+<button onclick="resetAll()">Nulstil lager</button>
 
 <h2>Vinlager</h2>
 <table>
@@ -63,6 +62,7 @@
       <th>Årgang</th>
       <th>Lokation</th>
       <th>Antal</th>
+      <th>Pris</th>
     </tr>
   </thead>
   <tbody id="list"></tbody>
@@ -108,7 +108,6 @@ function render() {
   labels.innerHTML = "";
 
   inventory.forEach(v => {
-    // tabel
     tbody.innerHTML += `
       <tr>
         <td>${v.vinId}</td>
@@ -118,10 +117,10 @@ function render() {
         <td>${v.vintage}</td>
         <td>${v.location}</td>
         <td>${v.quantity}</td>
+        <td>${v.price} kr.</td>
       </tr>
     `;
 
-    // label
     const div = document.createElement("div");
     div.className = "label";
     div.innerHTML = `
@@ -139,22 +138,36 @@ function render() {
 }
 
 /* =========================
-   CSV IMPORT
+   IMPORT
 ========================= */
 function importCSV() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return alert("Vælg en CSV-fil");
+
+  const mode = prompt(
+`Vælg import-type:
+1 = Overskriv hele lageret
+2 = Tilføj nye vine
+3 = Opdater kun priser`,
+"1"
+  );
+
+  if (!["1","2","3"].includes(mode)) return alert("Ugyldigt valg");
 
   const reader = new FileReader();
   reader.onload = e => {
     const lines = e.target.result.trim().split("\n");
     lines.shift(); // header
 
+    if (mode === "1") {
+      inventory = [];
+      vinCounter = 0;
+    }
+
     lines.forEach(line => {
       const c = line.split(",");
 
-      inventory.push({
-        vinId: generateVinId(),
+      const csvWine = {
         name: c[0],
         category: c[1],
         country: c[2],
@@ -163,13 +176,39 @@ function importCSV() {
         style: c[5],
         vintage: c[6],
         location: c[7],
-        quantity: Number(c[8])
-      });
+        quantity: Number(c[8]),
+        price: Number(c[9]),
+        vinId: c[10] || null
+      };
+
+      if (mode === "1") {
+        csvWine.vinId = generateVinId();
+        inventory.push(csvWine);
+      }
+
+      if (mode === "2") {
+        const exists = inventory.find(v =>
+          v.name === csvWine.name &&
+          v.vintage === csvWine.vintage &&
+          v.country === csvWine.country
+        );
+        if (!exists) {
+          csvWine.vinId = generateVinId();
+          inventory.push(csvWine);
+        }
+      }
+
+      if (mode === "3") {
+        const existing = inventory.find(v => v.vinId === csvWine.vinId);
+        if (existing && !isNaN(csvWine.price)) {
+          existing.price = csvWine.price;
+        }
+      }
     });
 
     save();
     render();
-    alert("CSV import gennemført");
+    alert("Import gennemført korrekt");
   };
 
   reader.readAsText(file);
@@ -178,7 +217,7 @@ function importCSV() {
 /* =========================
    RESET
 ========================= */
-function clearAll() {
+function resetAll() {
   if (!confirm("Vil du slette ALT lager?")) return;
   inventory = [];
   vinCounter = 0;
