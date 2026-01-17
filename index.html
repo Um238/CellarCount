@@ -2,29 +2,31 @@
 <html lang="da">
 <head>
   <meta charset="UTF-8">
-  <title>CellarCount – Print labels</title>
+  <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- QR -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    button { padding: 10px; margin: 10px 0; }
+    h1 { margin-bottom: 4px; }
+    input, button { padding: 8px; margin: 6px 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { background: #eee; }
 
     .labels {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 12px;
+      margin-top: 20px;
     }
 
     .label {
       border: 1px solid #000;
       padding: 10px;
       min-height: 160px;
-    }
-
-    .label canvas {
-      display: block;
-      margin-top: 6px;
     }
 
     @media print {
@@ -41,29 +43,153 @@
 </head>
 <body>
 
-<h1>🍷 CellarCount – Print labels</h1>
+<h1>🍷 CellarCount</h1>
+<p>Vinlager til hotel, restaurant og café</p>
+
+<h2>Importér vinlager (CSV)</h2>
+<input type="file" id="csvFile" accept=".csv">
+<br>
+<button onclick="importCSV()">Importér CSV</button>
+<button onclick="clearAll()">Nulstil lager</button>
+
+<h2>Vinlager</h2>
+<table>
+  <thead>
+    <tr>
+      <th>VIN-ID</th>
+      <th>Navn</th>
+      <th>Land</th>
+      <th>Region</th>
+      <th>Årgang</th>
+      <th>Lokation</th>
+      <th>Antal</th>
+    </tr>
+  </thead>
+  <tbody id="list"></tbody>
+</table>
+
+<h2>Print labels</h2>
 <button onclick="window.print()">🖨️ Print labels</button>
 
 <div class="labels" id="labels"></div>
 
 <script>
-const inventory = JSON.parse(localStorage.getItem("cellarcount_inventory")) || [];
-const container = document.getElementById("labels");
+/* =========================
+   KONFIGURATION
+========================= */
+const STORAGE_KEY = "cellarcount_inventory";
 
-inventory.forEach(v => {
-  const div = document.createElement("div");
-  div.className = "label";
-  div.innerHTML = `
-    <strong>${v.navn}</strong><br>
-    Årgang: ${v.årgang}<br>
-    Lokation: ${v.reol}-${v.hylde}<br>
-    VIN-ID: ${v.vinId}
-    <canvas></canvas>
-  `;
-  container.appendChild(div);
+/* =========================
+   DATA
+========================= */
+let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+let vinCounter = inventory.length;
 
-  QRCode.toCanvas(div.querySelector("canvas"), v.vinId, { width: 100 });
-});
+/* =========================
+   HJÆLPERE
+========================= */
+function generateVinId() {
+  vinCounter++;
+  return "VIN-" + String(vinCounter).padStart(6, "0");
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+}
+
+/* =========================
+   RENDER
+========================= */
+function render() {
+  const tbody = document.getElementById("list");
+  const labels = document.getElementById("labels");
+
+  tbody.innerHTML = "";
+  labels.innerHTML = "";
+
+  inventory.forEach(v => {
+    // tabel
+    tbody.innerHTML += `
+      <tr>
+        <td>${v.vinId}</td>
+        <td>${v.name}</td>
+        <td>${v.country}</td>
+        <td>${v.region}</td>
+        <td>${v.vintage}</td>
+        <td>${v.location}</td>
+        <td>${v.quantity}</td>
+      </tr>
+    `;
+
+    // label
+    const div = document.createElement("div");
+    div.className = "label";
+    div.innerHTML = `
+      <strong>${v.name}</strong><br>
+      ${v.country} – ${v.region}<br>
+      Årgang: ${v.vintage}<br>
+      Lokation: ${v.location}<br>
+      VIN-ID: ${v.vinId}
+      <canvas></canvas>
+    `;
+    labels.appendChild(div);
+
+    QRCode.toCanvas(div.querySelector("canvas"), v.vinId, { width: 100 });
+  });
+}
+
+/* =========================
+   CSV IMPORT
+========================= */
+function importCSV() {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Vælg en CSV-fil");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split("\n");
+    lines.shift(); // header
+
+    lines.forEach(line => {
+      const c = line.split(",");
+
+      inventory.push({
+        vinId: generateVinId(),
+        name: c[0],
+        category: c[1],
+        country: c[2],
+        region: c[3],
+        grape: c[4],
+        style: c[5],
+        vintage: c[6],
+        location: c[7],
+        quantity: Number(c[8])
+      });
+    });
+
+    save();
+    render();
+    alert("CSV import gennemført");
+  };
+
+  reader.readAsText(file);
+}
+
+/* =========================
+   RESET
+========================= */
+function clearAll() {
+  if (!confirm("Vil du slette ALT lager?")) return;
+  inventory = [];
+  vinCounter = 0;
+  save();
+  render();
+}
+
+/* =========================
+   START
+========================= */
+render();
 </script>
 
 </body>
