@@ -1,145 +1,139 @@
 <!DOCTYPE html>
 <html lang="da">
 <head>
-  <meta charset="UTF-8">
-  <title>CellarCount – Vinlager</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
-    th { background: #eee; }
-    .labels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
-    .label { border: 1px solid #000; padding: 10px; min-height: 160px; }
-    @media print {
-      body * { visibility: hidden; }
-      .labels, .labels * { visibility: visible; }
-      .labels { position: absolute; top: 0; left: 0; width: 100%; }
-    }
-  </style>
+<meta charset="UTF-8">
+<title>CellarCount – Vinlager</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f7f7f7;
+}
+h1 { margin-bottom: 5px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  font-size: 14px;
+}
+th { background: #eee; }
+td.right { text-align: right; }
+.label {
+  border: 1px solid #000;
+  padding: 10px;
+  margin: 10px;
+  width: 260px;
+  display: inline-block;
+}
+button { padding: 6px 12px; }
+</style>
 </head>
+
 <body>
 
 <h1>🍷 CellarCount</h1>
+<p>Professionelt vinlager – Hotel / Restaurant / Café</p>
 
+<hr>
+
+<h2>Import CSV</h2>
 <input type="file" id="csvFile" accept=".csv">
-<button onclick="importCSV()">Importér CSV</button>
-<button onclick="resetAll()">Nulstil lager</button>
+<button onclick="importCSV()">Importer</button>
 
+<h2>Vinlager</h2>
 <table>
-  <thead>
-    <tr>
-      <th>VIN-ID</th><th>Navn</th><th>Land</th><th>Region</th>
-      <th>Årgang</th><th>Lokation</th><th>Antal</th><th>Pris</th>
-    </tr>
-  </thead>
-  <tbody id="list"></tbody>
+<thead>
+<tr>
+  <th>Navn</th>
+  <th>Type</th>
+  <th>Land</th>
+  <th>Region</th>
+  <th>Reol</th>
+  <th>Hylde</th>
+  <th>Antal</th>
+  <th>Indkøbspris</th>
+</tr>
+</thead>
+<tbody id="inventory"></tbody>
 </table>
 
-<button onclick="window.print()">🖨️ Print labels</button>
-<div class="labels" id="labels"></div>
+<hr>
+
+<h2>Labels / QR</h2>
+<div id="labels"></div>
 
 <script>
-const STORAGE_KEY = "cellarcount_inventory";
-let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-let vinCounter = inventory.length;
+let wines = [];
 
-function generateVinId() {
-  vinCounter++;
-  return "VIN-" + String(vinCounter).padStart(6, "0");
-}
+/* ---------- CSV IMPORT ---------- */
+function importCSV() {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Vælg en CSV-fil");
 
-function resetAll() {
-  if (!confirm("Slet ALT lager?")) return;
-  inventory = [];
-  vinCounter = 0;
-  save(); render();
-}
-
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file, "UTF-8");
 }
 
 function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const delimiter = lines[0].includes(";") ? ";" : ",";
-  const headers = lines.shift().split(delimiter).map(h => h.trim());
-  return lines.map(line => {
-    const values = line.split(delimiter);
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = values[i]);
-    return obj;
-  });
-}
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split(";").map(h => h.trim());
 
-function importCSV() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg CSV");
+  wines = [];
 
-  const mode = prompt("1=Overskriv  2=Tilføj  3=Opdater priser", "1");
-  if (!["1","2","3"].includes(mode)) return;
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(";");
 
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = parseCSV(e.target.result);
-
-    if (mode === "1") { inventory = []; vinCounter = 0; }
-
-    rows.forEach(r => {
-      if (mode === "3") {
-        const found = inventory.find(v => v.vinId === r.vinId);
-        if (found) found.price = Number(r.price);
-        return;
-      }
-
-      const exists = inventory.find(v =>
-        v.name === r.name && v.vintage === r.vintage && v.country === r.country
-      );
-
-      if (mode === "2" && exists) return;
-
-      inventory.push({
-        vinId: r.vinId || generateVinId(),
-        name: r.name,
-        country: r.country,
-        region: r.region,
-        vintage: r.vintage,
-        location: r.location,
-        quantity: Number(r.quantity),
-        price: Number(r.price)
-      });
+    const wine = {};
+    headers.forEach((h, idx) => {
+      wine[h] = values[idx]?.trim();
     });
 
-    save(); render();
-    alert("Import OK");
-  };
-  reader.readAsText(file);
+    wine.vinId = wine.vinId || crypto.randomUUID();
+    wines.push(wine);
+  }
+
+  render();
 }
 
+/* ---------- RENDER TABLE ---------- */
 function render() {
-  const tbody = document.getElementById("list");
+  const tbody = document.getElementById("inventory");
   const labels = document.getElementById("labels");
-  tbody.innerHTML = ""; labels.innerHTML = "";
+  tbody.innerHTML = "";
+  labels.innerHTML = "";
 
-  inventory.forEach(v => {
+  wines.forEach(w => {
     tbody.innerHTML += `
       <tr>
-        <td>${v.vinId}</td><td>${v.name}</td><td>${v.country}</td>
-        <td>${v.region}</td><td>${v.vintage}</td>
-        <td>${v.location}</td><td>${v.quantity}</td><td>${v.price}</td>
+        <td>${w.name}</td>
+        <td>${w.category}</td>
+        <td>${w.country}</td>
+        <td>${w.region}</td>
+        <td>${w.reol}</td>
+        <td>${w.hylde}</td>
+        <td class="right">${w.quantity}</td>
+        <td class="right">${w.price} kr.</td>
       </tr>
     `;
 
-    const d = document.createElement("div");
-    d.className = "label";
-    d.innerHTML = `<strong>${v.name}</strong><br>${v.country} – ${v.region}<br>Årgang: ${v.vintage}<br>${v.location}<br>${v.vinId}<canvas></canvas>`;
-    labels.appendChild(d);
-    QRCode.toCanvas(d.querySelector("canvas"), v.vinId, { width: 100 });
+    labels.innerHTML += `
+      <div class="label">
+        <strong>${w.name}</strong><br>
+        ${w.category}<br>
+        ${w.country} – ${w.region}<br>
+        Reol ${w.reol} · Hylde ${w.hylde}<br>
+        <small>ID: ${w.vinId}</small>
+      </div>
+    `;
   });
 }
-
-render();
 </script>
+
 </body>
 </html>
