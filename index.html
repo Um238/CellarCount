@@ -4,99 +4,128 @@
   <meta charset="UTF-8">
   <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    input, button { padding: 10px; margin: 5px 0; width: 100%; }
+    h1 { margin-bottom: 5px; }
+    input, button { padding: 8px; margin: 6px 0; }
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 8px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
     th { background: #eee; }
-    #scanner { margin-top: 20px; }
+    .value { font-weight: bold; margin-top: 10px; }
   </style>
 </head>
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Vinlager & lageroptælling til hotel, restaurant og café.</p>
+<p>Vinlager og beholdningsstyring</p>
 
-<h2>Tilføj vin manuelt</h2>
-<input id="name" placeholder="Navn">
-<input id="country" placeholder="Land">
-<input id="quantity" type="number" placeholder="Antal">
-<button id="addBtn">Tilføj vin</button>
+<h2>Importér vinlager (CSV)</h2>
+<input type="file" id="csvFile" accept=".csv">
+<button onclick="importCSV()">Importér</button>
 
-<h2>📷 Scan stregkode / QR</h2>
-<button onclick="startScan()">Start scanning</button>
-<div id="scanner"></div>
+<div class="value" id="totalValue"></div>
 
 <h2>Vinlager</h2>
 <table>
   <thead>
     <tr>
-      <th>Navn / kode</th>
+      <th>VIN-ID</th>
+      <th>Navn</th>
+      <th>Kategori</th>
       <th>Land</th>
+      <th>Region</th>
+      <th>Årgang</th>
+      <th>Lokation</th>
       <th>Antal</th>
+      <th>Indkøbspris</th>
+      <th>Værdi</th>
     </tr>
   </thead>
   <tbody id="list"></tbody>
 </table>
 
 <script>
-(function () {
-  const STORAGE_KEY = "cellarcount_wines";
-  let wines = [];
+const STORAGE_KEY = "cellarcount_inventory";
 
-  function load() {
-    wines = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  }
+let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+let vinCounter = inventory.length;
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(wines));
-  }
+function generateVinId() {
+  vinCounter++;
+  return "VIN-" + String(vinCounter).padStart(6, "0");
+}
 
-  function render() {
-    const tbody = document.getElementById("list");
-    tbody.innerHTML = "";
-    wines.forEach(w => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${w.name}</td><td>${w.country}</td><td>${w.quantity}</td>`;
-      tbody.appendChild(tr);
-    });
-  }
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+}
 
-  function addWine(name, country = "-", quantity = 1) {
-    wines.push({ name, country, quantity });
-    save();
-    render();
-  }
+function render() {
+  const tbody = document.getElementById("list");
+  tbody.innerHTML = "";
+  let total = 0;
 
-  document.getElementById("addBtn").addEventListener("click", () => {
-    const name = document.getElementById("name").value.trim();
-    const country = document.getElementById("country").value.trim();
-    const quantity = document.getElementById("quantity").value.trim();
-    if (!name || !quantity) return alert("Udfyld felter");
-    addWine(name, country, quantity);
-    document.getElementById("name").value = "";
-    document.getElementById("country").value = "";
-    document.getElementById("quantity").value = "";
+  inventory.forEach(v => {
+    const value = v.antal * v.pris;
+    total += value;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${v.vinId}</td>
+      <td>${v.navn}</td>
+      <td>${v.kategori}</td>
+      <td>${v.land}</td>
+      <td>${v.region}</td>
+      <td>${v.årgang}</td>
+      <td>${v.reol}-${v.hylde}</td>
+      <td>${v.antal}</td>
+      <td>${v.pris} kr.</td>
+      <td>${value.toFixed(2)} kr.</td>
+    `;
+    tbody.appendChild(tr);
   });
 
-  window.startScan = function () {
-    const scanner = new Html5Qrcode("scanner");
-    scanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      code => {
-        addWine(code, "Scannet", 1);
-        scanner.stop();
-        document.getElementById("scanner").innerHTML = "";
-      }
-    );
-  };
+  document.getElementById("totalValue").innerText =
+    "Samlet lagerværdi: " + total.toFixed(2) + " kr.";
+}
 
-  load();
-  render();
-})();
+function importCSV() {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Vælg en CSV-fil");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split("\n").slice(1);
+
+    lines.forEach(line => {
+      if (!line.trim()) return;
+      const cols = line.split(",");
+
+      inventory.push({
+        vinId: generateVinId(),
+        navn: cols[0],
+        kategori: cols[1],
+        land: cols[2],
+        region: cols[3],
+        underregion: cols[4],
+        drue: cols[5],
+        stil: cols[6],
+        årgang: cols[7],
+        drikkeklarhed: cols[8],
+        reol: cols[9],
+        hylde: cols[10],
+        antal: Number(cols[11]),
+        pris: Number(cols[12])
+      });
+    });
+
+    save();
+    render();
+    alert("Import gennemført");
+  };
+  reader.readAsText(file);
+}
+
+render();
 </script>
 
 </body>
