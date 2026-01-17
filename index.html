@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <title>CellarCount – Vinlager</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button { padding: 6px; margin: 4px 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { background: #eee; }
+  </style>
+</head>
+<body>
+
+<h1>🍷 CellarCount</h1>
+<p>Enkelt vinlager til hotel, restaurant og café.</p>
+
+<h2>Tilføj vin</h2>
+<input id="name" placeholder="Navn">
+<input id="country" placeholder="Land">
+<input id="quantity" type="number" placeholder="Antal">
+<button onclick="addWine()">Tilføj</button>
+
+<h2>Vinlager</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Navn</th>
+      <th>Land</th>
+      <th>Antal</th>
+    </tr>
+  </thead>
+  <tbody id="list"></tbody>
+</table>
+
+<script>
+  const wines = [];
+
+  function addWine() {
+    const name = document.getElementById("name").value;
+    const country = document.getElementById("country").value;
+    const quantity = document.getElementById("quantity").value;
+
+    if (!name || !country || !quantity) return;
+
+    wines.push({ name, country, quantity });
+    render();
+  }
+
+  function render() {
+    const tbody = document.getElementById("list");
+    tbody.innerHTML = "";
+
+    wines.forEach(w => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${w.name}</td>
+          <td>${w.country}</td>
+          <td>${w.quantity}</td>
+        </tr>
+      `;
+    });
+  }
+</script>
+
+</body>
+</html>
