@@ -7,23 +7,26 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { margin-bottom: 5px; }
-    input, button { padding: 8px; margin: 6px 0; }
+    button, input { padding: 8px; margin: 6px 0; }
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
     th { background: #eee; }
-    .value { font-weight: bold; margin-top: 10px; }
+    .danger { background: #c62828; color: white; }
+    .info { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Vinlager og beholdningsstyring</p>
+<p>Professionelt vinlager – Fase A</p>
 
 <h2>Importér vinlager (CSV)</h2>
 <input type="file" id="csvFile" accept=".csv">
-<button onclick="importCSV()">Importér</button>
+<br>
+<button onclick="startImport()">Importér</button>
+<button class="danger" onclick="resetAll()">Nulstil hele lageret</button>
 
-<div class="value" id="totalValue"></div>
+<div class="info" id="totalValue"></div>
 
 <h2>Vinlager</h2>
 <table>
@@ -37,7 +40,7 @@
       <th>Årgang</th>
       <th>Lokation</th>
       <th>Antal</th>
-      <th>Indkøbspris</th>
+      <th>Pris</th>
       <th>Værdi</th>
     </tr>
   </thead>
@@ -46,7 +49,6 @@
 
 <script>
 const STORAGE_KEY = "cellarcount_inventory";
-
 let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 let vinCounter = inventory.length;
 
@@ -59,6 +61,14 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
 }
 
+function resetAll() {
+  if (!confirm("Er du sikker på, at du vil slette HELE lageret?")) return;
+  inventory = [];
+  vinCounter = 0;
+  save();
+  render();
+}
+
 function render() {
   const tbody = document.getElementById("list");
   tbody.innerHTML = "";
@@ -67,61 +77,85 @@ function render() {
   inventory.forEach(v => {
     const value = v.antal * v.pris;
     total += value;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${v.vinId}</td>
-      <td>${v.navn}</td>
-      <td>${v.kategori}</td>
-      <td>${v.land}</td>
-      <td>${v.region}</td>
-      <td>${v.årgang}</td>
-      <td>${v.reol}-${v.hylde}</td>
-      <td>${v.antal}</td>
-      <td>${v.pris} kr.</td>
-      <td>${value.toFixed(2)} kr.</td>
+    tbody.innerHTML += `
+      <tr>
+        <td>${v.vinId}</td>
+        <td>${v.navn}</td>
+        <td>${v.kategori}</td>
+        <td>${v.land}</td>
+        <td>${v.region}</td>
+        <td>${v.årgang}</td>
+        <td>${v.reol}-${v.hylde}</td>
+        <td>${v.antal}</td>
+        <td>${v.pris} kr.</td>
+        <td>${value.toFixed(2)} kr.</td>
+      </tr>
     `;
-    tbody.appendChild(tr);
   });
 
   document.getElementById("totalValue").innerText =
     "Samlet lagerværdi: " + total.toFixed(2) + " kr.";
 }
 
-function importCSV() {
+function startImport() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return alert("Vælg en CSV-fil");
+
+  if (!file.name.endsWith(".csv")) {
+    alert("Kun CSV-filer er tilladt. Gem Excel som CSV først.");
+    return;
+  }
+
+  const mode = prompt(
+    "Vælg import-type:\n1 = Overskriv ALT\n2 = Tilføj nye vine\n3 = Opdater kun priser",
+    "1"
+  );
 
   const reader = new FileReader();
   reader.onload = e => {
     const lines = e.target.result.split("\n").slice(1);
 
+    if (mode === "1") {
+      inventory = [];
+      vinCounter = 0;
+    }
+
     lines.forEach(line => {
       if (!line.trim()) return;
-      const cols = line.split(",");
+      const c = line.split(",");
+
+      const navn = c[0];
+      const pris = Number(c[12]);
+
+      if (mode === "3") {
+        const found = inventory.find(v => v.navn === navn);
+        if (found) found.pris = pris;
+        return;
+      }
 
       inventory.push({
         vinId: generateVinId(),
-        navn: cols[0],
-        kategori: cols[1],
-        land: cols[2],
-        region: cols[3],
-        underregion: cols[4],
-        drue: cols[5],
-        stil: cols[6],
-        årgang: cols[7],
-        drikkeklarhed: cols[8],
-        reol: cols[9],
-        hylde: cols[10],
-        antal: Number(cols[11]),
-        pris: Number(cols[12])
+        navn,
+        kategori: c[1],
+        land: c[2],
+        region: c[3],
+        underregion: c[4],
+        drue: c[5],
+        stil: c[6],
+        årgang: c[7],
+        drikkeklarhed: c[8],
+        reol: c[9],
+        hylde: c[10],
+        antal: Number(c[11]),
+        pris
       });
     });
 
     save();
     render();
-    alert("Import gennemført");
+    alert("Import færdig");
   };
+
   reader.readAsText(file);
 }
 
