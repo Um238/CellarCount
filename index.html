@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <title>CellarCount – Vinlager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    input, button { padding: 6px; margin: 4px 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    input, button { padding: 8px; margin: 4px 0; width: 100%; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #eee; }
   </style>
 </head>
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Vinlager og optælling til hotel, restaurant og café.</p>
+<p>Vinlager til hotel, restaurant og café.</p>
 
 <h2>Tilføj vin</h2>
 <input id="name" placeholder="Navn">
 <input id="country" placeholder="Land">
 <input id="quantity" type="number" placeholder="Antal">
-<button id="addBtn">Tilføj</button>
+<button id="addBtn">Tilføj vin</button>
 
 <h2>Vinlager</h2>
 <table>
@@ -35,37 +36,29 @@
 </table>
 
 <script>
+(function () {
   const STORAGE_KEY = "cellarcount_wines";
+  let wines = [];
 
-  function loadWines() {
+  function load() {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (e) {
-      return [];
+      wines = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      wines = [];
     }
   }
 
-  function saveWines(wines) {
+  function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(wines));
   }
-
-  let wines = loadWines();
 
   function render() {
     const tbody = document.getElementById("list");
     tbody.innerHTML = "";
-
     wines.forEach(w => {
-      const row = document.createElement("tr");
-
-      row.innerHTML = `
-        <td>${w.name}</td>
-        <td>${w.country}</td>
-        <td>${w.quantity}</td>
-      `;
-
-      tbody.appendChild(row);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${w.name}</td><td>${w.country}</td><td>${w.quantity}</td>`;
+      tbody.appendChild(tr);
     });
   }
 
@@ -80,7 +73,7 @@
     }
 
     wines.push({ name, country, quantity });
-    saveWines(wines);
+    save();
     render();
 
     document.getElementById("name").value = "";
@@ -90,7 +83,9 @@
 
   document.getElementById("addBtn").addEventListener("click", addWine);
 
+  load();
   render();
+})();
 </script>
 
 </body>
