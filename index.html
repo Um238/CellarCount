@@ -4,29 +4,39 @@
   <meta charset="UTF-8">
   <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { margin-bottom: 5px; }
     button, input { padding: 8px; margin: 6px 0; }
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
+    th, td { border: 1px solid #ccc; padding: 6px; vertical-align: top; }
     th { background: #eee; }
     .danger { background: #c62828; color: white; }
     .info { margin-top: 10px; font-weight: bold; }
+    .qr { width: 90px; }
+    .print-area { display: none; }
+    @media print {
+      body * { visibility: hidden; }
+      .print-area, .print-area * { visibility: visible; }
+      .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+      .label {
+        width: 48%;
+        border: 1px solid #000;
+        padding: 10px;
+        margin: 1%;
+        float: left;
+        page-break-inside: avoid;
+      }
+    }
   </style>
 </head>
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Professionelt vinlager – Fase A</p>
+<p>Fase B – Stregkoder & labels</p>
 
-<h2>Importér vinlager (CSV)</h2>
-<input type="file" id="csvFile" accept=".csv">
-<br>
-<button onclick="startImport()">Importér</button>
-<button class="danger" onclick="resetAll()">Nulstil hele lageret</button>
-
-<div class="info" id="totalValue"></div>
+<button onclick="showLabels()">Print labels</button>
 
 <h2>Vinlager</h2>
 <table>
@@ -34,135 +44,58 @@
     <tr>
       <th>VIN-ID</th>
       <th>Navn</th>
-      <th>Kategori</th>
-      <th>Land</th>
-      <th>Region</th>
       <th>Årgang</th>
       <th>Lokation</th>
-      <th>Antal</th>
-      <th>Pris</th>
-      <th>Værdi</th>
+      <th>QR</th>
     </tr>
   </thead>
   <tbody id="list"></tbody>
 </table>
 
+<div class="print-area" id="printArea"></div>
+
 <script>
 const STORAGE_KEY = "cellarcount_inventory";
 let inventory = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-let vinCounter = inventory.length;
-
-function generateVinId() {
-  vinCounter++;
-  return "VIN-" + String(vinCounter).padStart(6, "0");
-}
-
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
-}
-
-function resetAll() {
-  if (!confirm("Er du sikker på, at du vil slette HELE lageret?")) return;
-  inventory = [];
-  vinCounter = 0;
-  save();
-  render();
-}
 
 function render() {
   const tbody = document.getElementById("list");
+  const printArea = document.getElementById("printArea");
   tbody.innerHTML = "";
-  let total = 0;
+  printArea.innerHTML = "";
 
   inventory.forEach(v => {
-    const value = v.antal * v.pris;
-    total += value;
-    tbody.innerHTML += `
-      <tr>
-        <td>${v.vinId}</td>
-        <td>${v.navn}</td>
-        <td>${v.kategori}</td>
-        <td>${v.land}</td>
-        <td>${v.region}</td>
-        <td>${v.årgang}</td>
-        <td>${v.reol}-${v.hylde}</td>
-        <td>${v.antal}</td>
-        <td>${v.pris} kr.</td>
-        <td>${value.toFixed(2)} kr.</td>
-      </tr>
+    const tr = document.createElement("tr");
+    const qrId = "qr_" + v.vinId;
+
+    tr.innerHTML = `
+      <td>${v.vinId}</td>
+      <td>${v.navn}</td>
+      <td>${v.årgang}</td>
+      <td>${v.reol}-${v.hylde}</td>
+      <td><canvas id="${qrId}" class="qr"></canvas></td>
     `;
+    tbody.appendChild(tr);
+
+    QRCode.toCanvas(document.getElementById(qrId), v.vinId);
+
+    const label = document.createElement("div");
+    label.className = "label";
+    label.innerHTML = `
+      <strong>${v.navn}</strong><br>
+      Årgang: ${v.årgang}<br>
+      Lokation: ${v.reol}-${v.hylde}<br>
+      <canvas id="print_${qrId}"></canvas>
+      <div>${v.vinId}</div>
+    `;
+    printArea.appendChild(label);
+
+    QRCode.toCanvas(label.querySelector("canvas"), v.vinId);
   });
-
-  document.getElementById("totalValue").innerText =
-    "Samlet lagerværdi: " + total.toFixed(2) + " kr.";
 }
 
-function detectDelimiter(line) {
-  return line.includes(";") ? ";" : ",";
-}
-
-function startImport() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg en CSV-fil");
-
-  if (!file.name.toLowerCase().endsWith(".csv")) {
-    alert("Kun CSV-filer er tilladt. Gem Excel som CSV.");
-    return;
-  }
-
-  const mode = prompt(
-    "Vælg import-type:\n1 = Overskriv ALT\n2 = Tilføj nye vine\n3 = Opdater kun priser",
-    "1"
-  );
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = e.target.result.split(/\r?\n/).filter(r => r.trim());
-    const delimiter = detectDelimiter(rows[0]);
-    const dataRows = rows.slice(1);
-
-    if (mode === "1") {
-      inventory = [];
-      vinCounter = 0;
-    }
-
-    dataRows.forEach(row => {
-      const c = row.split(delimiter);
-      if (c.length < 13) return;
-
-      const navn = c[0];
-      const pris = Number(c[12].replace(",", "."));
-
-      if (mode === "3") {
-        const found = inventory.find(v => v.navn === navn);
-        if (found) found.pris = pris;
-        return;
-      }
-
-      inventory.push({
-        vinId: generateVinId(),
-        navn,
-        kategori: c[1],
-        land: c[2],
-        region: c[3],
-        underregion: c[4],
-        drue: c[5],
-        stil: c[6],
-        årgang: c[7],
-        drikkeklarhed: c[8],
-        reol: c[9],
-        hylde: c[10],
-        antal: Number(c[11]),
-        pris
-      });
-    });
-
-    save();
-    render();
-    alert("Import gennemført korrekt");
-  };
-
-  reader.readAsText(file, "UTF-8");
+function showLabels() {
+  window.print();
 }
 
 render();
