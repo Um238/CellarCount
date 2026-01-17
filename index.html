@@ -22,6 +22,7 @@ th { background:#eee; }
   font-size:13px;
 }
 .total { font-size:18px; font-weight:bold; margin:10px 0; }
+.qr { margin-top:6px; }
 </style>
 </head>
 
@@ -58,7 +59,6 @@ Hylde: <input id="filterHylde" placeholder="fx 1" style="width:60px">
 /* ---------- STATE ---------- */
 let wines = JSON.parse(localStorage.getItem("cellarcount_wines")) || [];
 
-/* ---------- SAVE ---------- */
 function save() {
   localStorage.setItem("cellarcount_wines", JSON.stringify(wines));
 }
@@ -69,39 +69,32 @@ function importCSV() {
   if (!file) return alert("Vælg CSV-fil");
 
   const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result);
+  reader.onload = e => {
+    const lines = e.target.result.trim().split("\n");
+    const headers = lines[0].split(";").map(h => h.trim());
+
+    wines = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].split(";");
+      const w = {};
+      headers.forEach((h, idx) => w[h] = (vals[idx] || "").trim());
+
+      w.reol = w.reol.toUpperCase();
+      w.hylde = w.hylde.toUpperCase();
+      w.quantity = Number(w.quantity || 0);
+      w.price = Number(w.price || 0);
+      w.vinId = w.vinId || crypto.randomUUID();
+
+      wines.push(w);
+    }
+
+    save();
+    renderTable();
+    alert("Import færdig: " + wines.length + " vine");
+    document.getElementById("csvFile").value = "";
+  };
   reader.readAsText(file, "UTF-8");
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(";").map(h => h.trim());
-
-  wines = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(";");
-    const w = {};
-
-    headers.forEach((h, idx) => {
-      w[h] = (vals[idx] || "").trim();
-    });
-
-    /* NORMALISERING (KRITISK) */
-    w.reol = w.reol.toUpperCase();
-    w.hylde = w.hylde.toUpperCase();
-
-    w.quantity = Number(w.quantity || 0);
-    w.price = Number(w.price || 0);
-    w.vinId = w.vinId || crypto.randomUUID();
-
-    wines.push(w);
-  }
-
-  save();
-  renderTable();
-  alert("Import færdig: " + wines.length + " vine");
-  document.getElementById("csvFile").value = "";
 }
 
 /* ---------- RESET ---------- */
@@ -138,7 +131,7 @@ function renderTable() {
     "Samlet lagerværdi: " + formatDKK(total);
 }
 
-/* ---------- LABELS (KORREKT) ---------- */
+/* ---------- LABELS (STABIL QR) ---------- */
 function renderLabels() {
   const reol = document.getElementById("filterReol").value.trim().toUpperCase();
   const hylde = document.getElementById("filterHylde").value.trim().toUpperCase();
@@ -167,17 +160,12 @@ function renderLabels() {
       ${w.category}<br>
       ${w.country} – ${w.region}<br>
       Reol ${w.reol} · Hylde ${w.hylde}<br>
-      <canvas></canvas>
+      <img class="qr">
     `;
     container.appendChild(div);
 
-    /* QR – SIKKER RENDER */
-    requestAnimationFrame(() => {
-      QRCode.toCanvas(
-        div.querySelector("canvas"),
-        w.vinId,
-        { width: 110 }
-      );
+    QRCode.toDataURL(w.vinId, { width: 110 }, (err, url) => {
+      if (!err) div.querySelector(".qr").src = url;
     });
   });
 }
