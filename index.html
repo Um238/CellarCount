@@ -97,12 +97,16 @@ function render() {
     "Samlet lagerværdi: " + total.toFixed(2) + " kr.";
 }
 
+function detectDelimiter(line) {
+  return line.includes(";") ? ";" : ",";
+}
+
 function startImport() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return alert("Vælg en CSV-fil");
 
-  if (!file.name.endsWith(".csv")) {
-    alert("Kun CSV-filer er tilladt. Gem Excel som CSV først.");
+  if (!file.name.toLowerCase().endsWith(".csv")) {
+    alert("Kun CSV-filer er tilladt. Gem Excel som CSV.");
     return;
   }
 
@@ -113,19 +117,21 @@ function startImport() {
 
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result.split("\n").slice(1);
+    const rows = e.target.result.split(/\r?\n/).filter(r => r.trim());
+    const delimiter = detectDelimiter(rows[0]);
+    const dataRows = rows.slice(1);
 
     if (mode === "1") {
       inventory = [];
       vinCounter = 0;
     }
 
-    lines.forEach(line => {
-      if (!line.trim()) return;
-      const c = line.split(",");
+    dataRows.forEach(row => {
+      const c = row.split(delimiter);
+      if (c.length < 13) return;
 
       const navn = c[0];
-      const pris = Number(c[12]);
+      const pris = Number(c[12].replace(",", "."));
 
       if (mode === "3") {
         const found = inventory.find(v => v.navn === navn);
@@ -153,10 +159,10 @@ function startImport() {
 
     save();
     render();
-    alert("Import færdig");
+    alert("Import gennemført korrekt");
   };
 
-  reader.readAsText(file);
+  reader.readAsText(file, "UTF-8");
 }
 
 render();
