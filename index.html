@@ -33,7 +33,7 @@ th { background:#eee; }
 <button onclick="openImport()">Importer</button>
 <button onclick="resetInventory()">Nulstil lager</button>
 
-<div class="total" id="totalValue">Samlet lagerværdi: 0,00 kr.</div>
+<div class="total" id="totalValue"></div>
 
 <table>
 <thead>
@@ -55,7 +55,13 @@ Hylde: <input id="filterHylde" placeholder="fx 1" style="width:60px">
 <div class="label-row" id="labels"></div>
 
 <script>
-let wines = [];
+/* ---------- STATE (PERSISTENT) ---------- */
+let wines = JSON.parse(localStorage.getItem("cellarcount_wines")) || [];
+
+/* ---------- SAVE ---------- */
+function save() {
+  localStorage.setItem("cellarcount_wines", JSON.stringify(wines));
+}
 
 /* ---------- IMPORT ---------- */
 function openImport() {
@@ -66,7 +72,7 @@ function openImport() {
   if (!["1","2","3"].includes(mode)) return;
 
   const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg en CSV-fil");
+  if (!file) return alert("Vælg CSV-fil");
 
   const reader = new FileReader();
   reader.onload = e => parseCSV(e.target.result, mode);
@@ -90,7 +96,9 @@ function parseCSV(text, mode) {
     w.price = Number(w.price || 0);
     w.vinId = w.vinId || crypto.randomUUID();
 
-    const existing = wines.find(x => x.vinId === w.vinId || x.name === w.name);
+    const existing = wines.find(x =>
+      x.vinId === w.vinId || x.name === w.name
+    );
 
     if (!existing && mode !== "3") {
       wines.push(w); added++;
@@ -100,15 +108,17 @@ function parseCSV(text, mode) {
     }
   }
 
-  document.getElementById("csvFile").value = "";
+  save();
   renderTable();
   alert(`Import færdig\nTilføjet: ${added}\nOpdateret: ${updated}`);
+  document.getElementById("csvFile").value = "";
 }
 
 /* ---------- RESET ---------- */
 function resetInventory() {
   if (!confirm("Vil du slette hele lageret?")) return;
   wines = [];
+  save();
   renderTable();
   document.getElementById("labels").innerHTML = "";
 }
@@ -174,7 +184,8 @@ function renderLabels() {
     QRCode.toCanvas(
       div.querySelector("canvas"),
       w.vinId,
-      { width: 110 }
+      { width: 110 },
+      err => { if (err) console.error(err); }
     );
   });
 }
@@ -186,6 +197,9 @@ function formatDKK(n) {
     currency: "DKK"
   });
 }
+
+/* ---------- INIT ---------- */
+renderTable();
 </script>
 
 </body>
