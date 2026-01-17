@@ -4,30 +4,36 @@
   <meta charset="UTF-8">
   <title>CellarCount – Vinlager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    input, button { padding: 8px; margin: 4px 0; width: 100%; }
+    input, button { padding: 10px; margin: 5px 0; width: 100%; }
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
     th { background: #eee; }
+    #scanner { margin-top: 20px; }
   </style>
 </head>
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Vinlager til hotel, restaurant og café.</p>
+<p>Vinlager & lageroptælling til hotel, restaurant og café.</p>
 
-<h2>Tilføj vin</h2>
+<h2>Tilføj vin manuelt</h2>
 <input id="name" placeholder="Navn">
 <input id="country" placeholder="Land">
 <input id="quantity" type="number" placeholder="Antal">
 <button id="addBtn">Tilføj vin</button>
 
+<h2>📷 Scan stregkode / QR</h2>
+<button onclick="startScan()">Start scanning</button>
+<div id="scanner"></div>
+
 <h2>Vinlager</h2>
 <table>
   <thead>
     <tr>
-      <th>Navn</th>
+      <th>Navn / kode</th>
       <th>Land</th>
       <th>Antal</th>
     </tr>
@@ -41,11 +47,7 @@
   let wines = [];
 
   function load() {
-    try {
-      wines = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      wines = [];
-    }
+    wines = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
   }
 
   function save() {
@@ -62,26 +64,35 @@
     });
   }
 
-  function addWine() {
-    const name = document.getElementById("name").value.trim();
-    const country = document.getElementById("country").value.trim();
-    const quantity = document.getElementById("quantity").value.trim();
-
-    if (!name || !country || !quantity) {
-      alert("Udfyld alle felter");
-      return;
-    }
-
+  function addWine(name, country = "-", quantity = 1) {
     wines.push({ name, country, quantity });
     save();
     render();
+  }
 
+  document.getElementById("addBtn").addEventListener("click", () => {
+    const name = document.getElementById("name").value.trim();
+    const country = document.getElementById("country").value.trim();
+    const quantity = document.getElementById("quantity").value.trim();
+    if (!name || !quantity) return alert("Udfyld felter");
+    addWine(name, country, quantity);
     document.getElementById("name").value = "";
     document.getElementById("country").value = "";
     document.getElementById("quantity").value = "";
-  }
+  });
 
-  document.getElementById("addBtn").addEventListener("click", addWine);
+  window.startScan = function () {
+    const scanner = new Html5Qrcode("scanner");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250 },
+      code => {
+        addWine(code, "Scannet", 1);
+        scanner.stop();
+        document.getElementById("scanner").innerHTML = "";
+      }
+    );
+  };
 
   load();
   render();
