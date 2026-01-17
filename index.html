@@ -14,13 +14,13 @@
 <body>
 
 <h1>🍷 CellarCount</h1>
-<p>Enkelt vinlager til hotel, restaurant og café.</p>
+<p>Vinlager og optælling til hotel, restaurant og café.</p>
 
 <h2>Tilføj vin</h2>
 <input id="name" placeholder="Navn">
 <input id="country" placeholder="Land">
 <input id="quantity" type="number" placeholder="Antal">
-<button onclick="addWine()">Tilføj</button>
+<button id="addBtn">Tilføj</button>
 
 <h2>Vinlager</h2>
 <table>
@@ -35,12 +35,15 @@
 </table>
 
 <script>
- <script>
   const STORAGE_KEY = "cellarcount_wines";
 
   function loadWines() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
   }
 
   function saveWines(wines) {
@@ -49,12 +52,32 @@
 
   let wines = loadWines();
 
-  function addWine() {
-    const name = document.getElementById("name").value;
-    const country = document.getElementById("country").value;
-    const quantity = document.getElementById("quantity").value;
+  function render() {
+    const tbody = document.getElementById("list");
+    tbody.innerHTML = "";
 
-    if (!name || !country || !quantity) return;
+    wines.forEach(w => {
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${w.name}</td>
+        <td>${w.country}</td>
+        <td>${w.quantity}</td>
+      `;
+
+      tbody.appendChild(row);
+    });
+  }
+
+  function addWine() {
+    const name = document.getElementById("name").value.trim();
+    const country = document.getElementById("country").value.trim();
+    const quantity = document.getElementById("quantity").value.trim();
+
+    if (!name || !country || !quantity) {
+      alert("Udfyld alle felter");
+      return;
+    }
 
     wines.push({ name, country, quantity });
     saveWines(wines);
@@ -65,24 +88,9 @@
     document.getElementById("quantity").value = "";
   }
 
-  function render() {
-    const tbody = document.getElementById("list");
-    tbody.innerHTML = "";
-
-    wines.forEach(w => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${w.name}</td>
-          <td>${w.country}</td>
-          <td>${w.quantity}</td>
-        </tr>
-      `;
-    });
-  }
+  document.getElementById("addBtn").addEventListener("click", addWine);
 
   render();
-</script>
-
 </script>
 
 </body>
