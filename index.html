@@ -2,185 +2,97 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<title>CellarCount – Vinlager (Fase A)</title>
-
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
-
+<title>CellarCount – Vinlager</title>
 <style>
-body { font-family: Arial, sans-serif; margin:20px; background:#f5f5f5; }
-table { width:100%; border-collapse:collapse; background:#fff; }
-th,td { border:1px solid #ccc; padding:6px; }
-th { background:#eee; }
-.right { text-align:right; }
-
-.label-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
-.label {
-  border:1px solid #000;
-  padding:10px;
-  width:240px;
-  background:#fff;
-  font-size:13px;
-}
-.total { font-size:18px; font-weight:bold; margin:10px 0; }
-.qr { margin-top:6px; }
+body{font-family:Arial;margin:20px}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #ccc;padding:6px;text-align:left}
+th{background:#eee}
+label{display:block;margin-top:10px}
+button{margin-top:10px;padding:6px}
+.total{margin-top:15px;font-weight:bold}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
-
 <body>
 
-<h1>🍷 CellarCount – Fase A</h1>
+<h1>🍷 CellarCount</h1>
 
-<input type="file" id="csvFile" accept=".csv">
+<label>Importer CSV ( ; )
+<input type="file" id="file"></label>
 <button onclick="importCSV()">Importer</button>
-<button onclick="resetInventory()">Nulstil lager</button>
-
-<div class="total" id="totalValue"></div>
 
 <table>
 <thead>
 <tr>
-  <th>Navn</th><th>Type</th><th>Land</th><th>Region</th>
-  <th>Reol</th><th>Hylde</th><th>Antal</th><th>Indkøbspris</th>
+<th>Navn</th><th>Type</th><th>Land</th><th>Reol</th><th>Hylde</th><th>Antal</th><th>Pris</th>
 </tr>
 </thead>
-<tbody id="inventory"></tbody>
+<tbody id="rows"></tbody>
 </table>
 
-<hr>
+<div class="total" id="total"></div>
 
-<h2>Print labels</h2>
-Reol: <input id="filterReol" placeholder="fx A" style="width:60px">
-Hylde: <input id="filterHylde" placeholder="fx 1" style="width:60px">
-<button onclick="renderLabels()">Vis labels</button>
-
-<div class="label-row" id="labels"></div>
+<h2>Labels</h2>
+<div id="labels"></div>
 
 <script>
-/* ---------- STATE ---------- */
-let wines = JSON.parse(localStorage.getItem("cellarcount_wines")) || [];
+let wines = JSON.parse(localStorage.getItem("wines")||"[]");
 
-function save() {
-  localStorage.setItem("cellarcount_wines", JSON.stringify(wines));
+function save(){localStorage.setItem("wines",JSON.stringify(wines));}
+
+function render(){
+ const tb=document.getElementById("rows");
+ tb.innerHTML="";
+ let sum=0;
+ wines.forEach(w=>{
+  sum+=w.price*w.quantity;
+  tb.innerHTML+=`<tr>
+  <td>${w.name}</td><td>${w.category}</td><td>${w.country}</td>
+  <td>${w.reol}</td><td>${w.hylde}</td>
+  <td>${w.quantity}</td><td>${w.price.toFixed(2)}</td></tr>`;
+ });
+ document.getElementById("total").innerText="Samlet lagerværdi: "+sum.toFixed(2)+" kr.";
+ renderLabels();
 }
 
-/* ---------- IMPORT ---------- */
-function importCSV() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Vælg CSV-fil");
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const lines = e.target.result.trim().split("\n");
-    const headers = lines[0].split(";").map(h => h.trim());
-
-    wines = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].split(";");
-      const w = {};
-      headers.forEach((h, idx) => w[h] = (vals[idx] || "").trim());
-
-      w.reol = w.reol.toUpperCase();
-      w.hylde = w.hylde.toUpperCase();
-      w.quantity = Number(w.quantity || 0);
-      w.price = Number(w.price || 0);
-      w.vinId = w.vinId || crypto.randomUUID();
-
-      wines.push(w);
-    }
-
-    save();
-    renderTable();
-    alert("Import færdig: " + wines.length + " vine");
-    document.getElementById("csvFile").value = "";
-  };
-  reader.readAsText(file, "UTF-8");
+function renderLabels(){
+ const d=document.getElementById("labels");
+ d.innerHTML="";
+ wines.forEach(w=>{
+  const c=document.createElement("canvas");
+  QRCode.toCanvas(c,w.vinId);
+  d.appendChild(document.createTextNode(w.name+" – Reol "+w.reol+" Hylde "+w.hylde));
+  d.appendChild(document.createElement("br"));
+  d.appendChild(c);
+  d.appendChild(document.createElement("hr"));
+ });
 }
 
-/* ---------- RESET ---------- */
-function resetInventory() {
-  if (!confirm("Vil du slette hele lageret?")) return;
-  wines = [];
-  save();
-  renderTable();
-  document.getElementById("labels").innerHTML = "";
-}
-
-/* ---------- TABLE ---------- */
-function renderTable() {
-  const tbody = document.getElementById("inventory");
-  tbody.innerHTML = "";
-  let total = 0;
-
-  wines.forEach(w => {
-    total += w.quantity * w.price;
-    tbody.innerHTML += `
-      <tr>
-        <td>${w.name}</td>
-        <td>${w.category}</td>
-        <td>${w.country}</td>
-        <td>${w.region}</td>
-        <td>${w.reol}</td>
-        <td>${w.hylde}</td>
-        <td class="right">${w.quantity}</td>
-        <td class="right">${formatDKK(w.price)}</td>
-      </tr>`;
+function importCSV(){
+ const f=document.getElementById("file").files[0];
+ if(!f)return;
+ const r=new FileReader();
+ r.onload=e=>{
+  const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim());
+  const h=lines.shift().split(";");
+  wines=[];
+  lines.forEach(l=>{
+   const c=l.split(";");
+   const o={};
+   h.forEach((k,i)=>o[k]=c[i]);
+   o.quantity=Number(o.quantity);
+   o.price=Number(o.price);
+   o.vinId=o.vinId||crypto.randomUUID();
+   wines.push(o);
   });
-
-  document.getElementById("totalValue").innerText =
-    "Samlet lagerværdi: " + formatDKK(total);
+  save();render();
+  alert("Import færdig: "+wines.length+" vine");
+ };
+ r.readAsText(f,"UTF-8");
 }
 
-/* ---------- LABELS (STABIL QR) ---------- */
-function renderLabels() {
-  const reol = document.getElementById("filterReol").value.trim().toUpperCase();
-  const hylde = document.getElementById("filterHylde").value.trim().toUpperCase();
-  const container = document.getElementById("labels");
-  container.innerHTML = "";
-
-  if (!reol) {
-    alert("Indtast mindst en reol");
-    return;
-  }
-
-  const filtered = wines.filter(w =>
-    w.reol === reol && (!hylde || w.hylde === hylde)
-  );
-
-  if (filtered.length === 0) {
-    container.innerHTML = "<p>Ingen vine fundet</p>";
-    return;
-  }
-
-  filtered.forEach(w => {
-    const div = document.createElement("div");
-    div.className = "label";
-    div.innerHTML = `
-      <strong>${w.name}</strong><br>
-      ${w.category}<br>
-      ${w.country} – ${w.region}<br>
-      Reol ${w.reol} · Hylde ${w.hylde}<br>
-      <img class="qr">
-    `;
-    container.appendChild(div);
-
-    QRCode.toDataURL(w.vinId, { width: 110 }, (err, url) => {
-      if (!err) div.querySelector(".qr").src = url;
-    });
-  });
-}
-
-/* ---------- FORMAT ---------- */
-function formatDKK(n) {
-  return n.toLocaleString("da-DK", {
-    style: "currency",
-    currency: "DKK"
-  });
-}
-
-/* ---------- INIT ---------- */
-renderTable();
+render();
 </script>
-
 </body>
 </html>
